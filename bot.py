@@ -2,6 +2,7 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet.protocol import Factory, Protocol, ClientFactory
 from twisted.internet import reactor, protocol, defer
 from twisted.internet.endpoints import TCP4ClientEndpoint
+import hashlib
 import json
 import re
 import math
@@ -17,11 +18,7 @@ class STATES:
 
 class BotProtocol(LineReceiver):
 
-    # roomid = md5 hash of url
-    # echo "https://www.janusxr.org/newlobby/index.html" | md5sum
-    # 945f42a3250440c7169f8f14dfa96e81  -
-
-    def __init__(self, userid_txt='userid.txt', name="__botty__", room_id='945f42a3250440c7169f8f14dfa96e81', owner="sqz",
+    def __init__(self, userid_txt='userid.txt', name="__botty__", room_id='', owner="sqz",
                  command_line_input=False):
         self.state = STATES.SLEEPING
         self.name = name
@@ -83,13 +80,10 @@ class BotProtocol(LineReceiver):
     @defer.inlineCallbacks
     def login(self):
         self.sendLine(json.dumps({"method": "logon", "data":{ "userId": self.name,"version": "40.3", "roomId": self.room_id}}).encode('utf-8'))
-        print( "> "+str( json.dumps({"method": "logon", "data":{ "userId": self.name,"version": "40.3", "roomId": self.room_id}}).encode('utf-8')) )
         yield self.waitForOkay()
         self.sendLine(json.dumps({"method": "subscribe", "data": {"roomId": self.room_id}}).encode('utf-8'))
-        print(" > "+str(json.dumps({"method": "subscribe", "data": {"roomId": self.room_id}}).encode('utf-8')))
         yield self.waitForOkay()
         self.sendLine(json.dumps({"method": "enter_room", "data": {"roomId": self.room_id}}).encode('utf-8'))
-        print( json.dumps({"method": "enter_room", "data": {"roomId": self.room_id}}).encode('utf-8') )
         yield self.waitForOkay()
         self.state = STATES.STAYING
         print("entering room")
@@ -137,7 +131,7 @@ class BotProtocol(LineReceiver):
         Called by twisted when a new JSON line comes in
         """
         msg = json.loads(line.decode('utf-8'))
-        print("< "+str(msg))
+        #print("< "+str(msg))
         to_remove = []
         #go through all the listeners and eat those that return True
         for listener in self.listeners:
@@ -237,11 +231,11 @@ class BotProtocol(LineReceiver):
         This will parse the chat messages of everyone and do the requested actions
         """
         if msg['method'] == 'user_chat':
-            print(msg['data']['userId'] + ' - ' + msg['data']['message'])
+            print(str(msg['data']['userId']) + ' - ' + str(msg['data']['message']))
             sender = msg['data']['userId']
-            text = msg['data']['message']
+            text = msg['data']['message']['data']
                                   #only accept commands from our owner or from anyone if no owner
-            if text[0] == '!' and (self.owner is None or self.owner == sender or sender == self.name):   # all command *must* start with !
+            if text[0] == '!': #and (self.owner is None or self.owner == sender or sender == self.name):   # all command *must* start with !
                 try:
                     if text.startswith("!echo"):
                         self.sendChat(text[5:])
@@ -288,10 +282,14 @@ class BotProtocol(LineReceiver):
         self.appendListener(listener)
         return d
 
+def md5sum_string(text):
+    return hashlib.md5(text.encode('utf-8')).hexdigest()
 
 class BotFactory(ClientFactory):
     def buildProtocol(self, addr):
-        return BotProtocol()
+        room = "https://www.janusxr.org/newlobby/index.html"
+        roomhash = md5sum_string(room)
+        return BotProtocol( 'userid.txt', "janus_bot", roomhash )
 
 
 if __name__ == "__main__":
