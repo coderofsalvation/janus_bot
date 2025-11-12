@@ -18,20 +18,20 @@ class STATES:
 
 class BotProtocol(LineReceiver):
 
-    def __init__(self, userid_txt='userid.txt', name="__botty__", room_id='', owner="sqz",
+    def __init__(self, userid_txt=None, name="__botty__", room_id='', owner="sqz",
                  command_line_input=False):
         self.state = STATES.SLEEPING
         self.name = name
         self.room_id = room_id
         self.owner = owner
         self.listeners = []
+        self.avatar_html = "<FireBoxRoom>|<Assets>|<AssetObject~id=&nullhead&~/>|<AssetObject~id=&BOT&~src=https://p.janusxr.org/https://janusxr.org/vrto2020/avatars/hubs/avatar1.glb&~/>|</Assets>|<Room>|\
+        <Ghost~id=&%s&~head_id=&nullhead&~body_id=&BOT&~scale=&1.2~1.2~1.2&~col=&1.66~1.66~1.66&~lighting=&false&~eye_pos=&0~0.5~-0.25&~/>|</Room>|</FireBoxRoom>|" % (self.name)
         if userid_txt is not None:
             try:
                 self.parse_avatar_txt(userid_txt)
             except Exception as e:  # emergency backup avatar
                 print("Error parsing userid.txt: " + str(e))
-                self.avatar_html = "<FireBoxRoom>|<Assets>|<AssetObject~id=&nullhead&~/>|<AssetObject~id=&BOT&~src=&http://varx.org/janusvr/avatars/claptrap/Claptrap5.obj&~mtl=&http://varx.org/janusvr/avatars/claptrap/Claptrap5.mtl&~/>|</Assets>|<Room>|\
-                <Ghost~id=&%s&~head_id=&nullhead&~body_id=&BOT&~scale=&1.2~1.2~1.2&~col=&1.66~1.66~1.66&~lighting=&false&~eye_pos=&0~0.5~-0.25&~/>|</Room>|</FireBoxRoom>|" % (self.name)
 
 
 
@@ -167,8 +167,8 @@ class BotProtocol(LineReceiver):
         if self.state == STATES.FOLLOWING and self.following is not None:
             if 'data' in msg and 'userId' in msg['data'] and msg['data']['userId'] == self.following:
                 if msg['method'] == 'user_moved' :
-
-                    pos = [float(x) for x in re.split(r" \.|S ", msg['data']['position'],1)[0].strip().split(" ")]
+                    print(msg['data'])
+                    pos = [float(x) for x in re.split(r" \.|S ", msg['data']['position']['pos'],1)[0].strip().split(" ")]
                     #old_pos = self.avatar_pos
                     self.latest_follow_pos = pos
 
@@ -288,8 +288,14 @@ def md5sum_string(text):
 class BotFactory(ClientFactory):
     def buildProtocol(self, addr):
         room = "https://www.janusxr.org/newlobby/index.html"
+        room = "https://jvr.junkonet.org/"
         roomhash = md5sum_string(room)
-        return BotProtocol( 'userid.txt', "janus_bot", roomhash )
+        print("entering room "+room+" ("+roomhash+")")
+        return BotProtocol( 
+            userid_txt=None, 
+            name="janus_bot", 
+            room_id=roomhash 
+        )
 
 
 if __name__ == "__main__":
