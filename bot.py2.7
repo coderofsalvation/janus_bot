@@ -1,3 +1,31 @@
+"""
+Copyright (c) 2014, Daniel Beard
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the copyright holder nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
 from twisted.protocols.basic import LineReceiver
 from twisted.internet.protocol import Factory, Protocol, ClientFactory
 from twisted.internet import reactor, protocol, defer
@@ -5,7 +33,6 @@ from twisted.internet.endpoints import TCP4ClientEndpoint
 import json
 import re
 import math
-
 #Constants
 FOLLOW_DIST = 1.5  # if the update distance is less than this, it won't move (to stop clipping)
 
@@ -17,11 +44,7 @@ class STATES:
 
 class BotProtocol(LineReceiver):
 
-    # roomid = md5 hash of url
-    # echo "https://www.janusxr.org/newlobby/index.html" | md5sum
-    # 945f42a3250440c7169f8f14dfa96e81  -
-
-    def __init__(self, userid_txt='userid.txt', name="__botty__", room_id='945f42a3250440c7169f8f14dfa96e81', owner="sqz",
+    def __init__(self, userid_txt='userid.txt', name="__minion__", room_id='eab63d0ea060b828578a4ae044f24d03', owner="yawgmoth",
                  command_line_input=False):
         self.state = STATES.SLEEPING
         self.name = name
@@ -32,7 +55,7 @@ class BotProtocol(LineReceiver):
             try:
                 self.parse_avatar_txt(userid_txt)
             except Exception as e:  # emergency backup avatar
-                print("Error parsing userid.txt: " + str(e))
+                print "Error parsing userid.txt: " + str(e)
                 self.avatar_html = "<FireBoxRoom>|<Assets>|<AssetObject~id=&nullhead&~/>|<AssetObject~id=&BOT&~src=&http://varx.org/janusvr/avatars/claptrap/Claptrap5.obj&~mtl=&http://varx.org/janusvr/avatars/claptrap/Claptrap5.mtl&~/>|</Assets>|<Room>|\
                 <Ghost~id=&%s&~head_id=&nullhead&~body_id=&BOT&~scale=&1.2~1.2~1.2&~col=&1.66~1.66~1.66&~lighting=&false&~eye_pos=&0~0.5~-0.25&~/>|</Room>|</FireBoxRoom>|" % (self.name)
 
@@ -74,26 +97,20 @@ class BotProtocol(LineReceiver):
     def _command_line_input(self):
         """
         Blocking method. DO NOT CALL FROM REACTOR!
-        Will take user input using input and pass it as a chat or command
+        Will take user input using raw_input and pass it as a chat or command
         """
         while True:
-            chat = input(":")
+            chat = raw_input(":")
             reactor.callFromThread(self.sendChat, chat, True)
 
     @defer.inlineCallbacks
     def login(self):
-        self.sendLine(json.dumps({"method": "logon", "data":{ "userId": self.name,"version": "40.3", "roomId": self.room_id}}).encode('utf-8'))
-        print( "> "+str( json.dumps({"method": "logon", "data":{ "userId": self.name,"version": "40.3", "roomId": self.room_id}}).encode('utf-8')) )
+        self.sendLine(json.dumps({"method": "logon", "data":{ "userId": self.name,"version": "25.5", "roomId": self.room_id}}))
         yield self.waitForOkay()
-        self.sendLine(json.dumps({"method": "subscribe", "data": {"roomId": self.room_id}}).encode('utf-8'))
-        print(" > "+str(json.dumps({"method": "subscribe", "data": {"roomId": self.room_id}}).encode('utf-8')))
+        self.sendLine(json.dumps({"method": "subscribe", "data": {"roomId": self.room_id}}))
         yield self.waitForOkay()
-        self.sendLine(json.dumps({"method": "enter_room", "data": {"roomId": self.room_id}}).encode('utf-8'))
-        print( json.dumps({"method": "enter_room", "data": {"roomId": self.room_id}}).encode('utf-8') )
-        yield self.waitForOkay()
+        self.sendLine(json.dumps({"method": "enter_room", "data": {"roomId": self.room_id}}))
         self.state = STATES.STAYING
-        print("entering room")
-        self.sendChat("hi there")
         self.tick()
 
     def setState(self, state):
@@ -126,7 +143,7 @@ class BotProtocol(LineReceiver):
         tick the state machine
         """
         if self.state == STATES.STAYING:
-            self.sendLine(json.dumps({"method": "move", "data": self.getAvatarString()}).encode('utf-8'))
+            self.sendLine(json.dumps({"method": "move", "data": self.getAvatarString()}))
         elif self.state == STATES.FOLLOWING:
             pass  # we don't need to do anything, handled async
         #tick
@@ -136,8 +153,7 @@ class BotProtocol(LineReceiver):
         """
         Called by twisted when a new JSON line comes in
         """
-        msg = json.loads(line.decode('utf-8'))
-        print("< "+str(msg))
+        msg = json.loads(line)
         to_remove = []
         #go through all the listeners and eat those that return True
         for listener in self.listeners:
@@ -161,9 +177,9 @@ class BotProtocol(LineReceiver):
         if dist > float(self.avatar_scale) * FOLLOW_DIST:
             to_send = self.getAvatarString(pos=new_pos)
             #send it .25 second later
-            self.sendLine(json.dumps({"method": "move", "data": to_send}).encode('utf-8'))
+            self.sendLine(json.dumps({"method": "move", "data": to_send}))
         else:
-            self.sendLine(json.dumps({"method": "move", "data": self.getAvatarString()}).encode('utf-8'))
+            self.sendLine(json.dumps({"method": "move", "data": self.getAvatarString()}))
 
     def followingListener(self, msg):
         """
@@ -181,21 +197,21 @@ class BotProtocol(LineReceiver):
                     reactor.callLater(.5, self.do_follow, pos)
                     #if they called from another room we're subscribed to
                     if msg['data']['roomId'] != self.room_id:
-                        self.sendLine(json.dumps({'method': 'subscribe', 'data': {'roomId': msg['data']['roomId']}}).encode('utf-8'))
-                        self.sendLine(json.dumps({'method': 'enter_room', 'data': {'roomId': msg['data']['roomId']}}).encode('utf-8'))
+                        self.sendLine(json.dumps({'method': 'subscribe', 'data': {'roomId': msg['data']['roomId']}}))
+                        self.sendLine(json.dumps({'method': 'enter_room', 'data': {'roomId': msg['data']['roomId']}}))
                         self.room_id = msg['data']['roomId']
 
                 elif msg['method'] == 'user_leave' :
                     if 'newRoomId' in msg['data'] is None:
                         self.state = STATES.STAYING
                     else:
-                        self.sendLine(json.dumps({'method': 'subscribe', 'data': {'roomId': msg['data']['newRoomId']}}).encode('utf-8'))
-                        self.sendLine(json.dumps({'method': 'enter_room', 'data': {'roomId': msg['data']['newRoomId']}}).encode('utf-8'))
+                        self.sendLine(json.dumps({'method': 'subscribe', 'data': {'roomId': msg['data']['newRoomId']}}))
+                        self.sendLine(json.dumps({'method': 'enter_room', 'data': {'roomId': msg['data']['newRoomId']}}))
                         self.room_id = msg['data']['newRoomId']
 
         #if we have an owner, always subscribe to the room they're in so we can hear them
         if self.owner is not None and msg['method'] == 'user_leave' and  msg['data']['userId'] == self.owner:
-            self.sendLine(json.dumps({'method': 'subscribe', 'data': {'roomId': msg['data']['newRoomId']}}).encode('utf-8'))
+            self.sendLine(json.dumps({'method': 'subscribe', 'data': {'roomId': msg['data']['newRoomId']}}))
             
         return False  # never eat
 
@@ -206,7 +222,7 @@ class BotProtocol(LineReceiver):
         def listener(msg):
             if msg['method'] == 'user_moved' and msg['data']['userId'] == name:
                 self.avatar_html = re.split(r" \.|S ", msg['data']['position'], 1)[1]
-                print("cloned" + str(self.avatar_html))
+                print "cloned" + str(self.avatar_html)
                 return True
             else:
                 return False
@@ -226,18 +242,18 @@ class BotProtocol(LineReceiver):
         @text: The text to say
         @listen_to_self: If true will run the listener on what this bot says
         """
-        self.sendLine(json.dumps({"method": "chat", "data": str(text)}).encode('utf-8'))
+        self.sendLine(json.dumps({"method": "chat", "data": str(text)}))
         if listen_to_self:
             self.chatListener({"method": 'user_chat', "data": {'userId': self.name, "message": text}})
         else:
-            print(":"+text)
+            print (":"+text)
 
     def chatListener(self, msg):
         """
         This will parse the chat messages of everyone and do the requested actions
         """
         if msg['method'] == 'user_chat':
-            print(msg['data']['userId'] + ' - ' + msg['data']['message'])
+            print msg['data']['userId'] + ' - ' + msg['data']['message']
             sender = msg['data']['userId']
             text = msg['data']['message']
                                   #only accept commands from our owner or from anyone if no owner
@@ -264,7 +280,7 @@ class BotProtocol(LineReceiver):
                         self.owner = command[1]
                         self.sendChat("Owner changed to %s. Your wish is my command" % (self.owner,))
                     elif text.startswith("!clone"):
-                        print("cloning...")
+                        print "cloning..."
                         command = text.split(" ")
                         self.clone_avatar(command[1])
 
@@ -280,7 +296,7 @@ class BotProtocol(LineReceiver):
         d = defer.Deferred()
         def listener(msg):
             if msg['method'] == 'okay':
-                print('okay')
+                print 'okay'
                 d.callback(msg)
                 return True  # eat me
             else:
@@ -296,5 +312,5 @@ class BotFactory(ClientFactory):
 
 if __name__ == "__main__":
 
-    reactor.connectTCP("presence.janusvr.com", 5566, BotFactory())
+    reactor.connectTCP("babylon.vrsites.com", 5566, BotFactory())
     reactor.run()
